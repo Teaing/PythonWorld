@@ -4,112 +4,167 @@
 
 import sys
 import time
+import logging
+import smtplib
 import platform
 import subprocess
+from email.mime.text import MIMEText
+
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', )
 
 
 def main():
-    system_version = Get_System_Version()
-    Action_Start(system_version)
+    systemVer = getSystemVersion()
+    monitorAction(systemVer)
 
 
-def Action_Start(_system_ver):
-    process_list = App_Info()['process']
-    print 'Mirror Process Count: %d ' % process_list.__len__()
-    if _system_ver == 'windows':
-        # mirror_code = ''.join(['TASKLIST.exe /V /NH /FO csv /FI "IMAGENAME eq ',process_name,'"'])  # pass
-        try:
-            p = subprocess.Popen(['TASKLIST.exe', '/V', '/NH', '/FO', 'CSV', '/FI', 'STATUS eq running'], bufsize=0,
-                                 stdout=subprocess.PIPE)
-        except Exception, e:
-            pass
-        mirror_output = p.communicate()[0]
-        mirror_process_list = mirror_output.split('\r\n')
-        if mirror_process_list:
-            for _process in process_list:
-                Action_tag = False
-                for process_one_list in mirror_process_list:
-                    process_one = process_one_list.split(',')
-                    process_name = process_one[0][1:-1]  # Process Name, Replace ""
-                    process_des = process_one[-1]  # Process Describe use e.g: python.exe hello.py
-                    if _process == process_name:
-                        Action_tag = True
-                        break
-                    elif _process in process_des:
-                        Action_tag = True
-                        break
-                Check_Tag_Send_Message(_process, Action_tag)
-    elif _system_ver == 'linux':
-        for _process in process_list:
-            Action_tag = False
-            try:
-                process_exec = subprocess.Popen('ps -ef|grep ' + _process + '|grep -v \'grep \'',
-                                                shell=True, bufsize=0,
-                                                stdout=subprocess.PIPE)
-            except Exception, e:
-                pass
-            mirror_output = process_exec.communicate()[0]
-            if mirror_output:
-                Action_tag = True
-            Check_Tag_Send_Message(_process, Action_tag)
+def monitorAction(systemVersion):
+    processList = infoConfig().get('process')
+    if not processList:
+        logging.warning('process list is empty!')
+        sys.exit()
+    logging.info('monitor process count: %d' % len(processList))
+    loopTime = loopStatus()
+    if loopTime:
+        while True:
+            loopAction(systemVersion, processList)
+            time.sleep(loopTime * 60)
+    else:
+        loopAction(systemVersion, processList)
+
+
+def loopAction(systemVersion, processList):
+    if systemVersion.startswith('Windows'):
+        windowsMonitor(processList)
+    elif systemVersion.startswith('Linux'):
+        linuxMonitor(processList)
     else:
         sys.exit('What The Fuck...')
 
 
-# Check Found Tag
-def Check_Tag_Send_Message(process_name, action_tag):
-    check_tag = App_Info()['check_live_status']
-    if check_tag:
-        if action_tag:
-            Send_Warning_Message(process_name)
+def windowsMonitor(processList):
+    # mirror_code = ''.join(['TASKLIST.exe /V /NH /FO csv /FI "IMAGENAME eq ',process_name,'"'])  # pass or wmic?
+    try:
+        # ['TASKLIST.exe', '/V', '/NH', '/FO', 'CSV']
+        p = subprocess.Popen(['TASKLIST.exe', '/V', '/NH', '/FO', 'CSV', '/FI', 'STATUS eq running'], bufsize=0,
+                             stdout=subprocess.PIPE)
+    except Exception, e:
+        pass
+    monitorOutput = p.communicate()[0]
+    monitorProcessList = monitorOutput.split('\r\n')
+    runningStatus = False
+    if monitorProcessList:
+        for _process in processList:
+            for monitorOneList in monitorProcessList:
+                processOne = monitorOneList.split(',')
+                processName = processOne[0][1:-1]  # 进程名称
+                processDes = processOne[-1]  # 进程说明
+                if _process == processName:
+                    runningStatus = True
+                    break
+                elif _process in processDes:
+                    runningStatus = True
+                    break
+            checkStautsSendInfo(_process, runningStatus)
+
+
+def linuxMonitor(processList):
+    for _process in processList:
+        try:
+            processExec = subprocess.Popen('ps -ef|grep ' + _process + '|grep -v \'grep \'',
+                                           shell=True, bufsize=0,
+                                           stdout=subprocess.PIPE)
+        except Exception, e:
+            pass
+        monitorOutput = processExec.communicate()[0]
+        runningStatus = True if monitorOutput else False
+        checkStautsSendInfo(_process, runningStatus)
+
+
+def checkStautsSendInfo(processName, runningStatus):
+    checkLiveStatus = infoConfig().get('checkLiveStatus')
+    if checkLiveStatus:  # True: 进程不管是活的还是死的都发警告信息
+        if runningStatus:
+            messageContent(processName)  # 进程活着
         else:
-            Send_Warning_Message(process_name, False)
+            messageContent(processName, False)  # 进程死了
+    else:  # False: 进程死了发送警告信息,只发送一次,活着没有动作
+        if runningStatus is False:
+            messageContent(processName, False)  # 进程死了
+            sys.exit('Game Over!')
+
+
+def messageContent(processName, runningStatus=True):
+    nowTime = getNow()
+    if runningStatus:
+        message = ''.join(['Alive, Process: ', processName, '\n', nowTime])
     else:
-        if action_tag is False:
-            Send_Warning_Message(process_name, False)
-            sys.exit('Game Over')
+        message = ''.join(['Death, Process: ', processName, '\n', nowTime])
+    WarningSend.mailSend('Warning', message)
 
 
-# Get System Type
-def Get_System_Version():
-    if 'Windows' in platform.system():
-        system_ver = 'windows'
-    elif 'Linux' in platform.system():
-        system_ver = 'linux'
-    else:
-        system_ver = 'other'
-    print 'System Version: %s' % system_ver
-    return system_ver
-
-
-# Send warning message
-def Send_Warning_Message(process_name, action_tag=True):  # action_tag True is running ,False is Die
-    now_str = Get_Now()
-    if action_tag:
-        message = ''.join(['Process: ', process_name, ' is Active', '\n', 'Time: ', now_str])
-    else:
-        message = ''.join(['Process: ', process_name, ' is die', '\n', 'Time: ', now_str])
-    print message
-
-
-# Send message Code ...
-
-
-# Get Now Time
-def Get_Now():
+def getNow():
     return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(int(time.time())))
 
 
-# Return Config
-def App_Info():
-    app_info = dict(
-        process=['git-svn'],  # Process Name
-        mobile=['13666666666'],  # Mobile Number use Send_Warning_Message
-        email=['king@king.com'],  # Email Address use Send_Warning_Message
-        interval_time=10,  # /min
-        check_live_status=True  # False Is Die Send Message, True Is Send Message Every Action
+def loopStatus():
+    intervalTime = int(infoConfig().get('intervalTime'))
+    if intervalTime >= 1:
+        return intervalTime
+    else:
+        return False
+
+
+def getSystemVersion():
+    systemVer = platform.system()
+    logging.info('current system: %s' % systemVer)
+    return systemVer
+
+
+def infoConfig():
+    configDict = dict(
+        process=['git-svn', 'main.py'],  # 要监控的进程列表
+        mobile=['13666666666'],  # 手机号码,用于接收警告信息
+        email=['13666666666@139.com'],  # 邮箱,用于接收警告信息
+        intervalTime=0,  # 检查频率,值如果大于等于1分钟，默认启用脚本内循环
+        checkLiveStatus=True  # False: 进程死了发送警告信息,只发送一次,活着没有动作 True: 进程不管是活的还是死的都发警告信息
     )
-    return app_info
+    return configDict
+
+
+class WarningSend:
+
+    @staticmethod
+    def mailSend(sub, content):
+        mailAddress = infoConfig().get('email')
+        mailHost = 'smtp.139.com'
+        mailUserName = '139139139'
+        mailPassWord = '139139139'
+        mailPostfix = '139.com'
+        if not mailAddress:
+            logging.warning('mail address is empty!')
+            return False
+        me = "admin<" + mailUserName + "@" + mailPostfix + ">"
+        msg = MIMEText(content, _subtype='plain', _charset='utf-8')
+        msg['Subject'] = sub
+        msg['From'] = me
+        msg['To'] = ";".join(mailAddress)
+        try:
+            server = smtplib.SMTP()
+            server.connect(mailHost)
+            server.login(mailUserName, mailPassWord)
+            server.sendmail(me, mailAddress, msg.as_string())
+            server.close()
+        except Exception, e:
+            logging.warning('mail send failure!!!')
+            logging.warning(str(e))
+
+    @staticmethod
+    def smsSend(content):
+        mobile = infoConfig().get('mobile')
+        if not mobile:
+            logging.warning('mobile number is empty!')
+        pass  # 发送短信后续代码
 
 
 if __name__ == '__main__':
