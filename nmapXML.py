@@ -51,3 +51,11 @@ def nmapVul(xmlPath):
 
 if __name__ == '__main__':
     main()
+
+'''
+myPocs python NmapVul.py ~/Desktop/172.16.13.1Vul.xml
+172.16.13.182
+172.16.13.243
+172.16.13.4
+[{'172.16.13.182': [{'state': 'VULNERABLE', 'CVE': 'CVE-2017-0143', 'title': 'Remote Code Execution vulnerability in Microsoft SMBv1 servers (ms17-010)'}]}, {'172.16.13.243': [{'state': 'VULNERABLE', 'CVE': 'CVE-2017-0143', 'title': 'Remote Code Execution vulnerability in Microsoft SMBv1 servers (ms17-010)'}]}, {'172.16.13.4': [{'state': 'VULNERABLE', 'CVE': 'CVE-2017-0143', 'title': 'Remote Code Execution vulnerability in Microsoft SMBv1 servers (ms17-010)'}]}]
+'''
