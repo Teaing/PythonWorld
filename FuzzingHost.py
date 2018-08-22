@@ -14,8 +14,8 @@ import threading
 def main():
     global sourceReturnHeader, testedUrl
 
-    testedUrl = 'http://www.iiiiii.com/'  # URL
-    testedIP = '180.118.00.206'  # 请求主机IP
+    testedUrl = 'http://www.renji.com/'  # URL
+    testedIP = '180.168.200.206'  # 请求主机IP
 
     threading_num = 20  # 线程数目
 
@@ -133,5 +133,5 @@ if __name__ == '__main__':
 
 '''
 ➜  MyProjects python NewFuzzingHost.py
-Found Address:	www.iiiii.com	http://180.118.000.206
+Found Address:	www.iiii.com	http://180.18.00.206
 '''
