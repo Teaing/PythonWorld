@@ -130,3 +130,8 @@ class ThreadFuzzingHost(threading.Thread):
 
 if __name__ == '__main__':
     main()
+
+'''
+➜  MyProjects python NewFuzzingHost.py
+Found Address:	www.iiiii.com	http://180.118.000.206
+'''
