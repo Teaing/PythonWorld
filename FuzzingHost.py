@@ -14,8 +14,8 @@ import threading
 def main():
     global sourceReturnHeader, testedUrl
 
-    testedUrl = 'http://www.renji.com/'  # URL
-    testedIP = '180.168.200.206'  # 请求主机IP
+    testedUrl = 'http://www.rji.com/'  # URL
+    testedIP = '180.168.20.206'  # 请求主机IP
 
     threading_num = 20  # 线程数目
 
